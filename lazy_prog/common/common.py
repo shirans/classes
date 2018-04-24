@@ -38,14 +38,23 @@ def cross_entropy_numpysum(T, pY):
 # It's equivalent to multiplying by a constant.
 # if you need to actual value of the log-likelyhood,
 # do not use mean cause by definition it's the sum of the cross entropy
-def cross_entropy_mean(T, pY):
+def cross_entropy_mean_nan(T, pY):
     return -np.nanmean(T * np.log(pY) + (1 - T) * np.log(1 - pY))
+
+
+# cross entropy
+def cross_entropy_mean(T, pY):
+    return -np.mean(T * np.log(pY) + (1 - T) * np.log(1 - pY))
 
 
 def print_data(Xb, t, w):
     print("Xb shape:", Xb.shape)
     print("targets shape:", t.shape)
     print("w shape:", w.shape)
+
+
+def forward(X, W, b):
+    return sigmoid(X.dot(W) + b)
 
 
 def create_data_2_gaussian_clouds(N, D):
@@ -68,8 +77,7 @@ def create_data_2_gaussian_clouds(N, D):
 
 
 def print_cross_entropy_error_for_w(Xb, w, T):
-    z = Xb.dot(w)
-    Y = sigmoid(z)
+    Y = sigmoid(Xb.dot(w))
     print(cross_entropy(T, Y))
 
 
@@ -105,7 +113,7 @@ def get_e_commerce_example_data():
 
     # one-hot
     for n in range(N):
-        t = int(X   [n, D - 1])
+        t = int(X[n, D - 1])
         X2[n, t + D - 1] = 1
 
     # method 2
@@ -133,7 +141,7 @@ def get_e_commerce_example_data():
     return Xtrain, Ytrain, Xtest, Ytest
 
 
-def get_binary_data():
+def get_e_commerce_binary_data():
     # return only the data from the first 2 classes
     Xtrain, Ytrain, Xtest, Ytest = get_e_commerce_example_data()
     X2train = Xtrain[Ytrain <= 1]
@@ -141,3 +149,36 @@ def get_binary_data():
     X2test = Xtest[Ytest <= 1]
     Y2test = Ytest[Ytest <= 1]
     return X2train, Y2train, X2test, Y2test
+
+
+def logistic_regression_with_test(xtrain, ytrain, xtest, ytest):
+    [N, D] = xtrain.shape
+    # randomly initialize weights
+    w = np.random.randn(D)
+    b = 0  # bias term
+
+    train_costs = []
+    test_costs = []
+    learning_rate = 0.001
+    # train loop
+    for i in range(10000):
+        pYtrain = forward(xtrain, w, b)
+        pYtest = forward(xtest, w, b)
+
+        ctrain = cross_entropy_mean(ytrain, pYtrain)
+        ctest = cross_entropy_mean(ytest, pYtest)
+        train_costs.append(ctrain)
+        test_costs.append(ctest)
+
+        # gradient descent
+        w -= learning_rate * xtrain.T.dot(pYtrain - ytrain)
+        b -= learning_rate * (pYtrain - ytrain).sum()
+        if i % 1000 == 0:
+            print(i, ctrain, ctest)
+
+    return w, train_costs, test_costs
+
+
+# calculate the accuracy
+def classification_rate(Y, T):
+    return np.mean(Y == T)

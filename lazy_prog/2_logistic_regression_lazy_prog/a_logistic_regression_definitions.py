@@ -1,5 +1,7 @@
 import numpy as np
-from common import create_data_2_gaussian_clouds, print_cross_entropy_error_for_w, visualize_two_classes_separation
+
+from lazy_prog.common.common import create_data_2_gaussian_clouds, print_cross_entropy_error_for_w, \
+    visualize_two_classes_separation
 
 N = 100
 D = 2
