@@ -4,6 +4,8 @@ import pandas as pd
 import os
 
 # so scripts from other folders can import this file
+import time
+
 dir_path = os.path.abspath(os.path.dirname(os.path.realpath(__file__)))
 
 # Set this so that when np encounters error, it'll throw them and not just log them
@@ -47,14 +49,14 @@ def cross_entropy_mean(T, pY):
     return -np.mean(T * np.log(pY) + (1 - T) * np.log(1 - pY))
 
 
+def cost_mean_l1(T, pY, l1, w):
+    return -np.mean(T * np.log(pY) + (1 - T) * np.log(1 - pY)) + l1 * np.abs(w).mean()
+
+
 def print_data(Xb, t, w):
     print("Xb shape:", Xb.shape)
     print("targets shape:", t.shape)
     print("w shape:", w.shape)
-
-
-def forward(X, W, b):
-    return sigmoid(X.dot(W) + b)
 
 
 def create_data_2_gaussian_clouds(N, D):
@@ -151,7 +153,7 @@ def get_e_commerce_binary_data():
     return X2train, Y2train, X2test, Y2test
 
 
-def logistic_regression_with_test(xtrain, ytrain, xtest, ytest):
+def logistic_regression_with_test(xtrain, ytrain, xtest, ytest, iterations, learning_rate):
     [N, D] = xtrain.shape
     # randomly initialize weights
     w = np.random.randn(D)
@@ -159,11 +161,10 @@ def logistic_regression_with_test(xtrain, ytrain, xtest, ytest):
 
     train_costs = []
     test_costs = []
-    learning_rate = 0.001
     # train loop
-    for i in range(10000):
-        pYtrain = forward(xtrain, w, b)
-        pYtest = forward(xtest, w, b)
+    for i in range(iterations):
+        pYtrain = sigmoid(xtrain.dot(w) + b)
+        pYtest = sigmoid(xtest.dot(w) + b)
 
         ctrain = cross_entropy_mean(ytrain, pYtrain)
         ctest = cross_entropy_mean(ytest, pYtest)
@@ -173,12 +174,55 @@ def logistic_regression_with_test(xtrain, ytrain, xtest, ytest):
         # gradient descent
         w -= learning_rate * xtrain.T.dot(pYtrain - ytrain)
         b -= learning_rate * (pYtrain - ytrain).sum()
-        if i % 1000 == 0:
+        if i % (iterations / 10) == 0:
             print(i, ctrain, ctest)
 
     return w, train_costs, test_costs
 
 
+def logistic_regression_l1(xtrain, ytrain, iterations, learning_rate, l1):
+    print("running logistic regression with l1: ", l1)
+    start = time.time()
+    b, w = init_logistic_regression(xtrain)
+    # train loop
+    for i in range(iterations):
+        y_tag = sigmoid(xtrain.dot(w) + b)
+
+        # gradient descent
+        w -= learning_rate * xtrain.T.dot(y_tag - ytrain) + l1 * np.sign(w)
+        b -= learning_rate * (y_tag - ytrain).sum()
+        if i % 100 == 0:
+            cost = cost_mean_l1(ytrain, y_tag, l1, w)
+            print(" cost for ", i, " iteration is: ", cost)
+    print("time took for 1 run: ",time.time()-start)
+    return w
+
+
+def logistic_regression(xtrain, ytrain, iterations, learning_rate):
+    b, w = init_logistic_regression(xtrain)
+
+    # train loop
+    for i in range(iterations):
+        y_tag = sigmoid(xtrain.dot(w) + b)
+        # gradient descent
+        w -= learning_rate * xtrain.T.dot(y_tag - ytrain)
+        b -= learning_rate * (y_tag - ytrain).sum()
+        if i % 100 == 0:
+            ctrain = cross_entropy_mean(ytrain, y_tag)
+            print(" cross entorpy mean for ", i, " iteration is: ", ctrain)
+
+    return w
+
+
+def init_logistic_regression(xtrain):
+    [N, D] = xtrain.shape
+    print("dimensions: N = ", N, "D = ", D)
+    # randomly initialize weights
+    w = np.random.randn(D)
+    b = 0  # bias term
+    return b, w
+
+
 # calculate the accuracy
 def classification_rate(Y, T):
-    return np.mean(Y == T)
+    return np.mean(np.round(Y) == T)

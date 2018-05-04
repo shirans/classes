@@ -3,7 +3,41 @@ import nltk
 from nltk.stem import WordNetLemmatizer
 from nltk.corpus import stopwords
 import numpy as np
-from lazy_prog.common.common import sigmoid, cross_entropy, cross_entropy_numpysum
+from sklearn.linear_model import LogisticRegression
+import time
+from sklearn.model_selection import KFold
+
+from models import sklearn_l1, sklearn, course_logistic, sklearn_l1_then_l2, sklearn_l2
+import logging.config
+
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'simple': {
+            'format': '%(levelname)s: %(message)s'
+        },
+    },
+    'handlers': {
+        'console': {
+            'level': 'DEBUG',
+            'class': 'logging.StreamHandler',
+        },
+    },
+    'loggers': {
+        '': {
+            'level': 'DEBUG',
+            'handlers': ['console'],
+        },
+    },
+}
+
+
+logging.config.dictConfig(LOGGING)
+
+logging.getLogger("sklearn").setLevel(logging.DEBUG)
+logging.getLogger(__name__).debug('This is a debug message')
 
 positive_reviews = BeautifulSoup(open('electronics/positive.review').read(), "html5lib")
 positive_reviews = positive_reviews.findAll('review_text')
@@ -23,15 +57,12 @@ if (len(positive_reviews) != len(negative_reviews)):
 
 
 def tokinizer(s):
-    s_old = s
     s = s.lower()
     tokens = nltk.tokenize.word_tokenize(s)
     tokens = [t for t in tokens if len(t) > 2]  # remove short words, they're probably not useful
     tokens = [wordnet_lemmatizer.lemmatize(t) for t in tokens]  # put words into base form
     tokens = [t for t in tokens if t not in stopwords]  # remove stopwords
     return tokens
-    # print("before:" + s_old)
-    # print("after:", ','.join(tokens))
 
 
 word_index_map = {}
@@ -81,43 +112,43 @@ for tokens in negative_tokenized:
 
 np.random.shuffle(data)
 
+# last 100 rows will be test
 X = data[:, :-1]
 Y = data[:, -1]
-
-# last 100 rows will be test
 Xtrain = X[:-100, ]
 Ytrain = Y[:-100, ]
 Xtest = X[-100:, ]
 Ytest = Y[-100:, ]
 
-
-def logistic_regression(xtrain, ytrain):
-    alpha = 0.01
-    [N, D] = xtrain.shape
-    w = np.random.random(D)
-    b = 0
-    for i in range(0, 100):
-        ytag = sigmoid(xtrain.dot(w) + b)
-        if i % 10 == 0:
-            print("current cross entropy:", cross_entropy(ytrain, ytag))
-            print("current success rate traijn:", np.mean(np.mean(np.round(ytag) - ytrain)))
-            ytagTest = sigmoid(Xtest.dot(w))
-            print("current success rate test:", np.mean(np.mean(np.round(ytagTest) - Ytest)))
-        w -= alpha * xtrain.T.dot(ytag - ytrain)
-        b -= alpha * (ytag - ytrain).sum()
-    return w
+#####################################################################################################################
 
 
-# N = Xtrain.shape[0]
-# zeros = np.zeros((N, 1))
-# Xb = np.concatenate((zeros, Xtrain), axis=1)
+total_start = time.time()
+kf = KFold(n_splits=10)
+index = 0
+scores = []
+weight_word_index = {}
+for train, test in kf.split(data):
+    start = time.time()
+    print("running fold:", index)
+    print("data shapes: %s %s" % (train.shape, test.shape))
+    Xtrain = data[train][:, :-1]
+    Ytrain = data[train][:,-1]
+    Xtest = data[test][:, :-1]
+    Ytest = data[test][:, -1]
 
-print("Xtrain shape", Xtrain.shape)
-print("Ytrain shape", Ytrain.shape)
-print("Xtrain shape", Xtest.shape)
-print("Ytest shape", Ytest.shape)
-w = logistic_regression(Xtrain, Ytrain)
-print("w shape", w.shape)
-res = sigmoid(Xtest.dot(w))
-print("cross entropy:", cross_entropy_numpysum(Ytest, res))
-print("classification rate:", np.mean(Ytest == np.round(res)))
+    # score = course_logistic(xtrain=Xtrain, ytrain=Ytrain, xtest=Xtest, ytest=Ytest)
+
+    score, weight_word_index = sklearn_l1_then_l2(xtrain=Xtrain, ytrain=Ytrain, xtest=Xtest, ytest=Ytest, word_index_map=word_index_map, weight_word_index=weight_word_index)
+
+    scores.append(score)
+    end = time.time()
+    print("total time", end - start)
+    index = index + 1
+
+#####################################################################################################################
+total_end = time.time()
+print("weight_word_index: ",weight_word_index)
+print("total time", total_end - total_start)
+print("scores:", scores)
+print("scores avg:", np.average(scores))
